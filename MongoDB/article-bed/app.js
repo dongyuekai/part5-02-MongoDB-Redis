@@ -1,5 +1,5 @@
 const express = require('express')
-const { MongoClient, ObjectID } = require('mongodb')
+const { MongoClient, ObjectID, ObjectId } = require('mongodb')
 
 const connectUri = 'mongodb://localhost:27017'
 const dbClient = new MongoClient(connectUri)
@@ -53,13 +53,81 @@ app.post('/articles', async (req, res, next) => {
   }
 })
 
+// 获取文章列表 分页处理
+app.get('/articles', async (req, res, next) => {
+  try {
+    let { _page = 1, _size = 5 } = req.query
+    _page = Number.parseInt(_page)
+    _size = Number.parseInt(_size)
+    await dbClient.connect()
+    const collection = dbClient.db('test').collection('articles')
+    const ret = await collection
+      .find()  // 查询数据
+      .skip(Number.parseInt((_page - 1) * _size))  // 跳过多少条
+      .limit(Number.parseInt(_size)) // 拿多少条
+    console.log('ret=====', ret)
+    // 转成数组
+    const articles = await ret.toArray()
+
+    // 获取总数
+    const articlesCount = await collection.countDocuments()
+    res.status(200).json({
+      articles,
+      page: _page,
+      size: _size,
+      articlesCount
+    })
+  } catch (error) {
+
+  }
+})
+
+// 获取单个文章
+app.get('/articles/:id', async (req, res, next) => {
+  try {
+    // console.log(req.query)
+    // console.log(req.params)
+    await dbClient.connect()
+    const collection = dbClient.db('test').collection('articles')
+    const article = await collection.findOne({ _id: ObjectID(req.params.id) })
+    res.status(200).json({
+      article
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 更新文章
+app.patch('/articles/:id', async (req, res, next) => {
+  try {
+    await dbClient.connect()
+    const collection = dbClient.db('test').collection('articles')
+    await collection.updateOne({
+      _id: ObjectId(req.params.id)
+    }, {
+      $set: req.body.article
+    })
+    // 查找更新之后的数据
+    const article = await collection.findOne({
+      _id: req.params.id
+    })
+    res.status(201).json({
+      article
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+
+
 // 错误处理中间件
 app.use((err, req, res, next) => {
   res.status(500).json({
     error: err.message
   })
 })
-
 
 app.listen(3000, () => {
   console.log('app server running at port 3000...')
